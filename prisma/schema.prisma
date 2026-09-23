@@ -1,0 +1,97 @@
+// Prisma schema for the Overtime Tracker app
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+}
+
+enum WorkMode {
+  WFH
+  OFFICE
+}
+
+enum EntryStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  role       Role     @default(EMPLOYEE)
+  createdAt  DateTime @default(now())
+
+  // Fixed approvers for this employee's own overtime entries
+  approver1Id String?
+  approver2Id String?
+  approver1   User?   @relation("Approver1", fields: [approver1Id], references: [id])
+  approver2   User?   @relation("Approver2", fields: [approver2Id], references: [id])
+
+  employeesAsApprover1 User[] @relation("Approver1")
+  employeesAsApprover2 User[] @relation("Approver2")
+
+  overtimeEntries OvertimeEntry[] @relation("EmployeeEntries")
+  approvalsMade   Approval[]      @relation("ApproverDecisions")
+}
+
+model Project {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+
+  overtimeEntries OvertimeEntry[]
+}
+
+model OvertimeEntry {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   User        @relation("EmployeeEntries", fields: [employeeId], references: [id])
+  date       DateTime
+  startTime  String // "HH:mm", local to the entry's date
+  endTime    String // "HH:mm"; if <= startTime, treated as crossing midnight
+  hours      Float // derived from startTime/endTime server-side, not user-entered
+  projectId  String
+  project    Project     @relation(fields: [projectId], references: [id])
+  reason     String
+  workMode   WorkMode
+  status     EntryStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  approvals Approval[]
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+}
+
+model Approval {
+  id              String           @id @default(cuid())
+  overtimeEntryId String
+  overtimeEntry   OvertimeEntry    @relation(fields: [overtimeEntryId], references: [id], onDelete: Cascade)
+  approverId      String
+  approver        User             @relation("ApproverDecisions", fields: [approverId], references: [id])
+  decision        ApprovalDecision @default(PENDING)
+  comment         String?
+  decidedAt       DateTime?
+
+  @@unique([overtimeEntryId, approverId])
+  @@index([approverId])
+}
