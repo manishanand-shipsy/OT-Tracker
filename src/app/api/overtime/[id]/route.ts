@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { computeHoursFromRange, isWithinLoggingWindow } from "@/lib/overtime";
 import { getOrCreateProjectByName } from "@/lib/projects";
 import { overtimeEntrySchema } from "@/lib/validation";
+import { notifyApprovers } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -91,9 +92,18 @@ export async function PATCH(
         workMode: data.workMode,
         status: "PENDING",
       },
-      include: { approvals: true, project: true },
+      include: {
+        approvals: { include: { approver: { select: { email: true, name: true } } } },
+        project: true,
+        employee: { select: { name: true } },
+      },
     });
   });
+
+  await notifyApprovers(
+    updated,
+    updated.approvals.map((a) => a.approver)
+  );
 
   return NextResponse.json(updated);
 }

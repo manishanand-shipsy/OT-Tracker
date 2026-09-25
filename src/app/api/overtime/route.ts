@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { computeHoursFromRange, isWithinLoggingWindow } from "@/lib/overtime";
 import { getOrCreateProjectByName } from "@/lib/projects";
 import { overtimeEntrySchema } from "@/lib/validation";
+import { notifyApprovers } from "@/lib/notifications";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -58,8 +59,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const employee = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!employee?.approver1Id || !employee?.approver2Id) {
+  const employee = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: {
+      approver1: { select: { email: true, name: true } },
+      approver2: { select: { email: true, name: true } },
+    },
+  });
+  if (!employee?.approver1Id || !employee?.approver2Id || !employee.approver1 || !employee.approver2) {
     return NextResponse.json(
       { error: "You don't have two approvers assigned yet. Contact an admin." },
       { status: 400 }
@@ -84,6 +91,11 @@ export async function POST(req: NextRequest) {
     },
     include: { approvals: true, project: true },
   });
+
+  await notifyApprovers(
+    { ...entry, employee: { name: employee.name } },
+    [employee.approver1, employee.approver2]
+  );
 
   return NextResponse.json(entry, { status: 201 });
 }

@@ -19,6 +19,9 @@ required, no hosting account needed beyond a Linux box with Docker installed.
 2. `cp .env.example .env` and fill in every value (see comments in the file):
    `POSTGRES_PASSWORD`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET` (generate with
    `openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+   `SLACK_BOT_TOKEN` is optional — leave it blank to skip Slack approval
+   notifications, or see the comment above it in `.env.example` for how to
+   create the Slack app and get a token.
 3. Build and start everything:
    ```sh
    docker compose up --build -d
